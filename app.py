@@ -2,73 +2,54 @@ import streamlit as st
 import os
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain_core.prompts import PromptTemplate
 
-# --- 1. SETTINGS & BRANDING ---
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="Padosi AI", page_icon="🏠")
 
-# API Keys
-os.environ["TAVILY_API_KEY"] = st.secrets["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"]
-os.environ["GROQ_API_KEY"] = st.secrets["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"]
-# UI
+# --- 2. API KEYS (Secrets se uthayega) ---
+try:
+    os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+    os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+except:
+    st.error("API Keys missing in Streamlit Secrets!")
+
+# --- 3. UI ---
 st.title("🏙️ Padosi AI")
-st.write("Delhi Neighborhood Intelligence (Fixed Version)")
+st.write("Delhi's Neighborhood Intelligence Auditor")
 
 locality = st.text_input("Enter Locality Name (e.g. Rohini, Dwarka, GK):")
 
 if st.button("Generate Report"):
     if not locality:
-        st.error("Locality name toh daalo bhai!")
+        st.error("Please enter a locality!")
     else:
-        with st.spinner("Analyzing data..."):
+        with st.spinner(f"Searching data for {locality}..."):
             try:
-                # LLM Setup
+                # Direct Search
+                search = TavilySearchResults(k=3)
+                search_results = search.run(f"liveability report {locality} Delhi safety water power aqi")
+                
+                # LLM Analysis (Groq)
                 llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
                 
-                # Tools Setup
-                search = TavilySearchResults(k=3)
-                tools = [search]
-
-                # Modern ReAct Prompt
-                template = """Answer the following questions as best you can. You have access to the following tools:
-                {tools}
-
-                Use the following format:
-                Question: the input question you must answer
-                Thought: you should always think about what to do
-                Action: the action to take, should be one of [{tool_names}]
-                Action Input: the input to the action
-                Observation: the result of the action
-                ... (this Thought/Action/Action Input/Observation can repeat N times)
-                Thought: I now know the final answer
-                Final Answer: the final answer to the original input question
-
-                Begin!
-                Question: {input}
-                Thought: {agent_scratchpad}"""
-
-                prompt = PromptTemplate.from_template(template)
-
-                # Create the Agent (Simplified)
-                agent = create_react_agent(llm, tools, prompt)
+                prompt = f"""
+                You are an expert urban planner. Based on these search results:
+                {search_results}
                 
-                # Agent Executor
-                agent_executor = AgentExecutor(
-                    agent=agent, 
-                    tools=tools, 
-                    verbose=True, 
-                    handle_parsing_errors=True
-                )
-
-                # Execution
-                query = f"Provide a liveability report for {locality}, Delhi covering Safety, AQI, and Future Infra."
-                result = agent_executor.invoke({"input": query})
-
+                Write a detailed liveability report for {locality}, Delhi.
+                Include:
+                - Overall Score (out of 10)
+                - Safety
+                - Environment (AQI)
+                - Utility (Water/Power)
+                - Future Growth
+                """
+                
+                response = llm.invoke(prompt)
                 st.success("Report Ready!")
-                st.markdown(result["output"])
-
+                st.markdown(response.content)
+                
             except Exception as e:
-                st.error(f"Error logic: {e}")
+                st.error(f"Error during analysis: {e}")
 
-st.caption("Padosi AI | Powered by Groq & Tavily")
+st.caption("Padosi AI | Live Version")
