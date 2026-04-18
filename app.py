@@ -14,7 +14,7 @@ except:
     st.error("API Keys missing in Streamlit Secrets!")
 
 # --- 3. UI ---
-st.title("🏙️ Padosi AI")
+st.markdown("### *Kahan ghar lena hai? Humse pucho!*")
 st.write("Delhi's Neighborhood Intelligence Auditor")
 
 locality = st.text_input("Enter Locality Name (e.g. Rohini, Dwarka, GK):")
