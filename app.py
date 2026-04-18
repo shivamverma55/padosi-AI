@@ -53,3 +53,8 @@ if st.button("Generate Report"):
                 st.error(f"Error during analysis: {e}")
 
 st.caption("Padosi AI | Live Version")
+# Report aane ke baad ye columns dikhao
+col1, col2, col3 = st.columns(3)
+col1.metric("Liveability Score", "7.8/10", "Good")
+col2.metric("Safety Index", "8.5/10", "High")
+col3.metric("Air Quality", "150 AQI", "-20", delta_color="inverse")
