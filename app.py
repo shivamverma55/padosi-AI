@@ -9,9 +9,8 @@ from langchain_core.prompts import PromptTemplate
 st.set_page_config(page_title="Padosi AI", page_icon="🏠")
 
 # API Keys
-os.environ["TAVILY_API_KEY"] = "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"
-os.environ["GROQ_API_KEY"] = "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"
-
+os.environ["TAVILY_API_KEY"] = st.secrets["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"]
+os.environ["GROQ_API_KEY"] = st.secrets["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"]
 # UI
 st.title("🏙️ Padosi AI")
 st.write("Delhi Neighborhood Intelligence (Fixed Version)")
