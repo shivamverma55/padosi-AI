@@ -1,112 +1,160 @@
 import streamlit as st
 import os
+import re
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
 
-# --- 1. SETTINGS & BRANDING ---
+# --- PAGE CONFIG ---
 st.set_page_config(page_title="Padosi AI", page_icon="🏠", layout="wide")
 
-# SAHI LOGO LINK
-LOGO_URL = "https://raw.githubusercontent.com/shivamverma55/padosi-AI/main/logo.png.png" 
+LOGO_URL = "https://raw.githubusercontent.com/shivamverma55/padosi-AI/main/logo.png.png"
 
-# Custom CSS matching your Logo Colors (Navy Blue & Green)
-st.markdown(f"""
-    <style>
-    .main {{ background-color: #f8f9fa; }}
-    .stButton>button {{
-        background-color: #32CD32; /* Lime Green from logo */
-        color: white;
-        border-radius: 8px;
-        border: none;
-        height: 3em;
-        width: 100%;
-        font-weight: bold;
-    }}
-    .stButton>button:hover {{ background-color: #002147; color: white; }}
-    .report-card {{
-        background-color: white;
-        padding: 30px;
-        border-radius: 15px;
-        border-top: 10px solid #002147; /* Navy Blue from logo */
-        box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-    }}
-    [data-testid="stMetricValue"] {{ color: #002147; font-weight: bold; }}
-    </style>
-    """, unsafe_allow_html=True)
+# --- UI STYLE ---
+st.markdown("""
+<style>
+.main { background-color: #f8f9fa; }
 
-# --- 2. SIDEBAR ---
+.stButton>button {
+    background-color: #32CD32;
+    color: white;
+    border-radius: 10px;
+    height: 3em;
+    font-weight: bold;
+}
+
+.stButton>button:hover {
+    background-color: #002147;
+}
+
+.report-card {
+    background-color: white;
+    padding: 25px;
+    border-radius: 15px;
+    border-top: 8px solid #002147;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+}
+</style>
+""", unsafe_allow_html=True)
+
+# --- SIDEBAR ---
 with st.sidebar:
     st.image(LOGO_URL, use_container_width=True)
-    st.markdown("---")
     st.markdown("### 🛠️ Services")
     st.write("✅ Neighborhood Audit")
-    st.write("✅ Safety Verification")
-    st.write("✅ Future Growth Intel")
-    st.markdown("---")
-    st.info("Padosi AI helps you verify a locality before you buy your dream home.")
+    st.write("✅ Safety Check")
+    st.write("✅ Growth Insights")
 
-# --- 3. MAIN UI ---
+# --- MAIN ---
 st.title("🏙️ Padosi AI")
-st.markdown("#### *Smart data for smarter home-buying decisions.*")
+st.caption("Smart data for smarter property decisions")
 
-locality = st.text_input("Enter Locality Name (e.g. Rohini Sector 10, GK-2, Dwarka Sector 1):")
+locality = st.text_input("Enter Locality")
 
-if st.button("Generate Intelligence Report"):
+# --- SCORE EXTRACTOR ---
+def extract_scores(text):
+    scores = {"Safety": "-", "Connectivity": "-", "Environment": "-", "Growth": "-"}
+    patterns = {
+        "Safety": r"Safety[:\s]*([0-9.]+)",
+        "Connectivity": r"Connectivity[:\s]*([0-9.]+)",
+        "Environment": r"Environment[:\s]*([0-9.]+)",
+        "Growth": r"Growth[:\s]*([0-9.]+)"
+    }
+
+    for key in scores:
+        match = re.search(patterns[key], text)
+        if match:
+            scores[key] = match.group(1) + "/10"
+
+    return scores
+
+# --- BUTTON ---
+if st.button("Generate Report"):
     if not locality:
-        st.warning("Please enter a locality name.")
+        st.warning("Enter locality name first")
     else:
-        with st.spinner(f"🕵️ Padosi AI is analyzing {locality}..."):
+        with st.spinner("Analyzing locality..."):
+
             try:
-                # API Keys from Secrets
+                # API KEYS
                 os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
                 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-                
-                # AI Research
-                search = TavilySearchResults(k=3)
-                search_results = search.run(f"locality liveability report {locality} Delhi safety water aqi future infra")
-                
-                llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
-                
+
+                # SEARCH DATA
+                search = TavilySearchResults(k=5)
+                search_data = search.run(
+                    f"{locality} Delhi crime safety water supply AQI metro connectivity infrastructure future development"
+                )
+
+                # LLM
+                llm = ChatGroq(
+                    model_name="llama-3.3-70b-versatile",
+                    temperature=0.2
+                )
+
+                # SMART PROMPT
                 prompt = f"""
-                You are a senior Real Estate Consultant. Based on: {search_results}
-                Write a detailed report for {locality}, Delhi.
-                
-                Structure:
-                1. EXECUTIVE SUMMARY (2 sentences)
-                2. SCORECARD (Approximate scores out of 10 for Safety, Utilities, Connectivity, Future Growth)
-                3. DETAILED ANALYSIS (Safety, Environment, Utility, Growth)
-                4. PROS & CONS (Bullet points)
-                5. EXPERT RECOMMENDATION
+                You are a professional real estate analyst.
+
+                RAW DATA:
+                {search_data}
+
+                STEP 1: Extract factual insights:
+                - Crime level
+                - Air quality
+                - Connectivity
+                - Development
+
+                STEP 2: Give scores:
+                Safety: X/10
+                Connectivity: X/10
+                Environment: X/10
+                Growth: X/10
+
+                STEP 3: Write report:
+
+                EXECUTIVE SUMMARY:
+                (2 lines)
+
+                DETAILED ANALYSIS:
+                - Safety:
+                - Connectivity:
+                - Environment:
+                - Growth:
+
+                PROS:
+                -
+
+                CONS:
+                -
+
+                FINAL VERDICT:
+                (Should invest or not)
                 """
-                
+
                 response = llm.invoke(prompt)
-                
-                # --- 4. DISPLAY RESULTS ---
+                report = response.content
+
+                scores = extract_scores(report)
+
+                # --- UI OUTPUT ---
                 st.markdown("---")
-                st.markdown(f"<div class='report-card'>", unsafe_allow_html=True)
-                st.header(f"📍 Locality Intelligence: {locality}")
-                
-                # Professional Metrics Row
-                m1, m2, m3, m4 = st.columns(4)
-                m1.metric("🛡️ Safety", "7.5/10")
-                m2.metric("🚇 Connectivity", "9.2/10")
-                m3.metric("🌿 Environment", "6.4/10")
-                m4.metric("📈 Growth", "8.0/10")
-                
+                st.markdown("<div class='report-card'>", unsafe_allow_html=True)
+
+                st.header(f"📍 {locality}")
+
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("🛡️ Safety", scores["Safety"])
+                col2.metric("🚇 Connectivity", scores["Connectivity"])
+                col3.metric("🌿 Environment", scores["Environment"])
+                col4.metric("📈 Growth", scores["Growth"])
+
                 st.markdown("---")
-                st.markdown(response.content)
+                st.markdown(report)
+
                 st.markdown("</div>", unsafe_allow_html=True)
-                
-                # Call to Action
-                st.markdown("### 📞 Interested in this locality?")
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    st.button("Get Expert Legal Consultation")
-                with col_btn2:
-                    st.button("Download Full PDF Report (Premium)")
-                    
+
             except Exception as e:
                 st.error(f"Error: {e}")
 
 st.markdown("---")
-st.caption("© 2024 Padosi AI | Transparent Urban Intelligence")
+st.caption("© Padosi AI")
