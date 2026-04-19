@@ -4,18 +4,46 @@ import re
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
 
-# --- CONFIG ---
-st.set_page_config(page_title="Padosi AI", page_icon="🏠", layout="wide")
+st.set_page_config(page_title="Padosi AI", layout="wide")
 
-LOGO_URL = "https://raw.githubusercontent.com/shivamverma55/padosi-AI/main/logo.png.png"
-
-# --- STYLE ---
+# --- MODERN UI CSS ---
 st.markdown("""
 <style>
-.main { background-color: #f5f7fa; }
+body {
+    background-color: #f6f7fb;
+}
 
+/* HERO INPUT */
+.hero {
+    text-align: center;
+    padding: 40px 0;
+}
+
+.hero h1 {
+    font-size: 42px;
+    font-weight: 700;
+}
+
+/* CARD */
+.card {
+    background: white;
+    padding: 25px;
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.05);
+    margin-top: 20px;
+}
+
+/* SCORE GRID */
+.metric-box {
+    text-align: center;
+    padding: 15px;
+    border-radius: 12px;
+    background: #f1f3f8;
+}
+
+/* BUTTON */
 .stButton>button {
-    background-color: #32CD32;
+    background: #000;
     color: white;
     border-radius: 10px;
     height: 3em;
@@ -23,37 +51,19 @@ st.markdown("""
 }
 
 .stButton>button:hover {
-    background-color: #002147;
-}
-
-.report-card {
-    background-color: white;
-    padding: 30px;
-    border-radius: 15px;
-    border-top: 8px solid #002147;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+    background: #333;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR ---
-with st.sidebar:
-    st.image(LOGO_URL, use_container_width=True)
-    st.markdown("### 🛠️ Services")
-    st.write("✅ Neighborhood Audit")
-    st.write("✅ Safety Check")
-    st.write("✅ Growth Insights")
+# --- HERO ---
+st.markdown("<div class='hero'><h1>🏙️ Padosi AI</h1><p>Know your locality before you invest</p></div>", unsafe_allow_html=True)
 
-# --- TITLE ---
-st.title("🏙️ Padosi AI")
-st.caption("Smart data for smarter property decisions")
-
-locality = st.text_input("Enter Locality")
+locality = st.text_input("Enter locality (e.g. Dwarka Sector 21)")
 
 # --- SCORE EXTRACTOR ---
 def extract_scores(text):
     scores = {"Safety": "-", "Connectivity": "-", "Environment": "-", "Growth": "-"}
-
     patterns = {
         "Safety": r"Safety[:\s\-]*([0-9]+\/10)",
         "Connectivity": r"Connectivity[:\s\-]*([0-9]+\/10)",
@@ -68,38 +78,29 @@ def extract_scores(text):
 
     return scores
 
-# --- MAIN BUTTON ---
-if st.button("Generate Report"):
-    if not locality:
-        st.warning("Enter locality name first")
-    else:
-        with st.spinner("Analyzing locality..."):
+# --- BUTTON ---
+if st.button("Analyze Locality"):
 
-            try:
-                os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
-                os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+    with st.spinner("Analyzing data..."):
 
-                # --- SEARCH ---
-                search = TavilySearchResults(k=5)
-                search_data = search.run(
-                    f"{locality} Delhi crime safety AQI water supply metro connectivity infrastructure future development"
-                )
+        try:
+            os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+            os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-                # --- LLM ---
-                llm = ChatGroq(
-                    model_name="llama-3.3-70b-versatile",
-                    temperature=0
-                )
+            search = TavilySearchResults(k=5)
+            data = search.run(
+                f"{locality} Delhi crime AQI metro connectivity infrastructure property trends"
+            )
 
-                # --- STRICT PROMPT ---
-                prompt = f"""
-You are a strict real estate analyst.
+            llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
 
-RAW DATA:
-{search_data}
+            prompt = f"""
+You are a real estate analyst.
 
-IMPORTANT:
-Return output EXACTLY in this format. Do NOT change format.
+DATA:
+{data}
+
+STRICT FORMAT:
 
 SCORECARD:
 Safety: 7/10
@@ -107,55 +108,40 @@ Connectivity: 8/10
 Environment: 6/10
 Growth: 8/10
 
-EXECUTIVE SUMMARY:
-Write 2 lines only.
-
-DETAILED ANALYSIS:
-- Safety:
-- Connectivity:
-- Environment:
-- Growth:
+SUMMARY:
+2 lines.
 
 PROS:
-- Point 1
-- Point 2
+-
 
 CONS:
-- Point 1
-- Point 2
+-
 
-FINAL VERDICT:
-Clear yes or no with reason.
+VERDICT:
 """
 
-                response = llm.invoke(prompt)
-                report = response.content
+            response = llm.invoke(prompt)
+            report = response.content
 
-                scores = extract_scores(report)
+            scores = extract_scores(report)
 
-                # --- OUTPUT ---
-                st.markdown("---")
-                st.markdown("<div class='report-card'>", unsafe_allow_html=True)
+            # --- RESULT CARD ---
+            st.markdown("<div class='card'>", unsafe_allow_html=True)
 
-                st.header(f"📍 {locality}")
+            st.subheader(f"📍 {locality}")
 
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("🛡️ Safety", scores["Safety"])
-                col2.metric("🚇 Connectivity", scores["Connectivity"])
-                col3.metric("🌿 Environment", scores["Environment"])
-                col4.metric("📈 Growth", scores["Growth"])
+            # SCORE GRID
+            c1, c2, c3, c4 = st.columns(4)
+            c1.markdown(f"<div class='metric-box'>🛡️<br><b>{scores['Safety']}</b><br>Safety</div>", unsafe_allow_html=True)
+            c2.markdown(f"<div class='metric-box'>🚇<br><b>{scores['Connectivity']}</b><br>Connectivity</div>", unsafe_allow_html=True)
+            c3.markdown(f"<div class='metric-box'>🌿<br><b>{scores['Environment']}</b><br>Environment</div>", unsafe_allow_html=True)
+            c4.markdown(f"<div class='metric-box'>📈<br><b>{scores['Growth']}</b><br>Growth</div>", unsafe_allow_html=True)
 
-                st.markdown("---")
-                st.markdown(report)
+            st.markdown("---")
 
-                st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown(report)
 
-                # DEBUG (remove later)
-                with st.expander("🔍 Debug Output"):
-                    st.write(report)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-            except Exception as e:
-                st.error(f"Error: {e}")
-
-st.markdown("---")
-st.caption("© Padosi AI")
+        except Exception as e:
+            st.error(e)
