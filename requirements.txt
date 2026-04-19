@@ -1,5 +1,5 @@
 streamlit
-langchain-groq
-langchain-community
-tavily-python
 langchain
+langchain-community
+langchain-groq
+tavily-python
