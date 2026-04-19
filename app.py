@@ -4,15 +4,15 @@ import re
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
 
-# --- PAGE CONFIG ---
+# --- CONFIG ---
 st.set_page_config(page_title="Padosi AI", page_icon="🏠", layout="wide")
 
 LOGO_URL = "https://raw.githubusercontent.com/shivamverma55/padosi-AI/main/logo.png.png"
 
-# --- UI STYLE ---
+# --- STYLE ---
 st.markdown("""
 <style>
-.main { background-color: #f8f9fa; }
+.main { background-color: #f5f7fa; }
 
 .stButton>button {
     background-color: #32CD32;
@@ -28,10 +28,10 @@ st.markdown("""
 
 .report-card {
     background-color: white;
-    padding: 25px;
+    padding: 30px;
     border-radius: 15px;
     border-top: 8px solid #002147;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.08);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -44,7 +44,7 @@ with st.sidebar:
     st.write("✅ Safety Check")
     st.write("✅ Growth Insights")
 
-# --- MAIN ---
+# --- TITLE ---
 st.title("🏙️ Padosi AI")
 st.caption("Smart data for smarter property decisions")
 
@@ -53,21 +53,22 @@ locality = st.text_input("Enter Locality")
 # --- SCORE EXTRACTOR ---
 def extract_scores(text):
     scores = {"Safety": "-", "Connectivity": "-", "Environment": "-", "Growth": "-"}
+
     patterns = {
-        "Safety": r"Safety[:\s]*([0-9.]+)",
-        "Connectivity": r"Connectivity[:\s]*([0-9.]+)",
-        "Environment": r"Environment[:\s]*([0-9.]+)",
-        "Growth": r"Growth[:\s]*([0-9.]+)"
+        "Safety": r"Safety[:\s\-]*([0-9]+\/10)",
+        "Connectivity": r"Connectivity[:\s\-]*([0-9]+\/10)",
+        "Environment": r"Environment[:\s\-]*([0-9]+\/10)",
+        "Growth": r"Growth[:\s\-]*([0-9]+\/10)"
     }
 
     for key in scores:
-        match = re.search(patterns[key], text)
+        match = re.search(patterns[key], text, re.IGNORECASE)
         if match:
-            scores[key] = match.group(1) + "/10"
+            scores[key] = match.group(1)
 
     return scores
 
-# --- BUTTON ---
+# --- MAIN BUTTON ---
 if st.button("Generate Report"):
     if not locality:
         st.warning("Enter locality name first")
@@ -75,68 +76,64 @@ if st.button("Generate Report"):
         with st.spinner("Analyzing locality..."):
 
             try:
-                # API KEYS
                 os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
                 os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
 
-                # SEARCH DATA
+                # --- SEARCH ---
                 search = TavilySearchResults(k=5)
                 search_data = search.run(
-                    f"{locality} Delhi crime safety water supply AQI metro connectivity infrastructure future development"
+                    f"{locality} Delhi crime safety AQI water supply metro connectivity infrastructure future development"
                 )
 
-                # LLM
+                # --- LLM ---
                 llm = ChatGroq(
                     model_name="llama-3.3-70b-versatile",
-                    temperature=0.2
+                    temperature=0
                 )
 
-                # SMART PROMPT
+                # --- STRICT PROMPT ---
                 prompt = f"""
-                You are a professional real estate analyst.
+You are a strict real estate analyst.
 
-                RAW DATA:
-                {search_data}
+RAW DATA:
+{search_data}
 
-                STEP 1: Extract factual insights:
-                - Crime level
-                - Air quality
-                - Connectivity
-                - Development
+IMPORTANT:
+Return output EXACTLY in this format. Do NOT change format.
 
-                STEP 2: Give scores:
-                Safety: X/10
-                Connectivity: X/10
-                Environment: X/10
-                Growth: X/10
+SCORECARD:
+Safety: 7/10
+Connectivity: 8/10
+Environment: 6/10
+Growth: 8/10
 
-                STEP 3: Write report:
+EXECUTIVE SUMMARY:
+Write 2 lines only.
 
-                EXECUTIVE SUMMARY:
-                (2 lines)
+DETAILED ANALYSIS:
+- Safety:
+- Connectivity:
+- Environment:
+- Growth:
 
-                DETAILED ANALYSIS:
-                - Safety:
-                - Connectivity:
-                - Environment:
-                - Growth:
+PROS:
+- Point 1
+- Point 2
 
-                PROS:
-                -
+CONS:
+- Point 1
+- Point 2
 
-                CONS:
-                -
-
-                FINAL VERDICT:
-                (Should invest or not)
-                """
+FINAL VERDICT:
+Clear yes or no with reason.
+"""
 
                 response = llm.invoke(prompt)
                 report = response.content
 
                 scores = extract_scores(report)
 
-                # --- UI OUTPUT ---
+                # --- OUTPUT ---
                 st.markdown("---")
                 st.markdown("<div class='report-card'>", unsafe_allow_html=True)
 
@@ -152,6 +149,10 @@ if st.button("Generate Report"):
                 st.markdown(report)
 
                 st.markdown("</div>", unsafe_allow_html=True)
+
+                # DEBUG (remove later)
+                with st.expander("🔍 Debug Output"):
+                    st.write(report)
 
             except Exception as e:
                 st.error(f"Error: {e}")
