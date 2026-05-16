@@ -1,147 +1,106 @@
 import streamlit as st
-import os
-import re
 from langchain_groq import ChatGroq
 from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain.agents import create_tool_calling_agent, AgentExecutor
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import AIMessage, HumanMessage
+import os
 
-st.set_page_config(page_title="Padosi AI", layout="wide")
+st.set_page_config(page_title="Italy Study Advisor AI", page_icon="🇮🇹", layout="wide")
 
-# --- MODERN UI CSS ---
-st.markdown("""
-<style>
-body {
-    background-color: #f6f7fb;
-}
+st.title("🇮🇹 Italy Study Advisor")
+st.subheader("Your Personal AI Guide for Bachelor's & Master's in Italy")
 
-/* HERO INPUT */
-.hero {
-    text-align: center;
-    padding: 40px 0;
-}
+# ===================== API KEYS =====================
+os.environ["GROQ_API_KEY"] = "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"
+os.environ["TAVILY_API_KEY"] = "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"
 
-.hero h1 {
-    font-size: 42px;
-    font-weight: 700;
-}
+# ===================== LLM + TOOLS =====================
+@st.cache_resource
+def get_agent():
+    llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0.3, max_tokens=1024)
 
-/* CARD */
-.card {
-    background: white;
-    padding: 25px;
-    border-radius: 16px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.05);
-    margin-top: 20px;
-}
+    search_tool = TavilySearchResults(max_results=4)
 
-/* SCORE GRID */
-.metric-box {
-    text-align: center;
-    padding: 15px;
-    border-radius: 12px;
-    background: #f1f3f8;
-}
+    tools = [search_tool]
 
-/* BUTTON */
-.stButton>button {
-    background: #000;
-    color: white;
-    border-radius: 10px;
-    height: 3em;
-    font-weight: bold;
-}
+    system_prompt = """You are an expert, friendly, and highly knowledgeable Italian Education Consultant.
+    You help students (especially from India and other countries) apply for Bachelor's and Master's programs in Italy.
 
-.stButton>button:hover {
-    background: #333;
-}
-</style>
-""", unsafe_allow_html=True)
+    Key topics you cover:
+    - Top universities (Politecnico di Milano, University of Bologna, Sapienza Rome, Padova, etc.)
+    - Application process, deadlines, required documents
+    - Pre-enrollment on Universitaly portal
+    - Student Visa (Type D) procedure
+    - Scholarships (DSU, Invest Your Talent, university merit scholarships)
+    - Cost of living, accommodation, part-time work
+    - Student life & cultural adaptation tips
+    - Personalized university & program recommendations
 
-# --- HERO ---
-st.markdown("<div class='hero'><h1>🏙️ Padosi AI</h1><p>Know your locality before you invest</p></div>", unsafe_allow_html=True)
+    Always be accurate. Use tools for latest deadlines. Give encouraging and practical advice."""
 
-locality = st.text_input("Enter locality (e.g. Dwarka Sector 21)")
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ])
 
-# --- SCORE EXTRACTOR ---
-def extract_scores(text):
-    scores = {"Safety": "-", "Connectivity": "-", "Environment": "-", "Growth": "-"}
-    patterns = {
-        "Safety": r"Safety[:\s\-]*([0-9]+\/10)",
-        "Connectivity": r"Connectivity[:\s\-]*([0-9]+\/10)",
-        "Environment": r"Environment[:\s\-]*([0-9]+\/10)",
-        "Growth": r"Growth[:\s\-]*([0-9]+\/10)"
-    }
+    agent = create_tool_calling_agent(llm, tools, prompt)
+    return AgentExecutor(agent=agent, tools=tools, verbose=False)
 
-    for key in scores:
-        match = re.search(patterns[key], text, re.IGNORECASE)
-        if match:
-            scores[key] = match.group(1)
+agent_executor = get_agent()
 
-    return scores
+# ===================== SESSION =====================
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Namaste! 👋 I'm your dedicated Italy Study Advisor AI.\n\nHow can I help you today? You can ask about universities, applications, visas, scholarships, or get personalized recommendations."}
+    ]
 
-# --- BUTTON ---
-if st.button("Analyze Locality"):
+# ===================== CHAT UI =====================
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    with st.spinner("Analyzing data..."):
+if prompt := st.chat_input("Type your question here... (e.g., Best universities for Computer Science in Italy)"):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        try:
-            os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
-            os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
+    with st.chat_message("assistant"):
+        with st.spinner("Thinking... ⚡ Groq is fast"):
+            response = agent_executor.invoke({
+                "input": prompt,
+                "chat_history": [
+                    HumanMessage(content=m["content"]) if m["role"] == "user" else AIMessage(content=m["content"])
+                    for m in st.session_state.messages[:-1]
+                ]
+            })
+            answer = response["output"]
+            st.markdown(answer)
 
-            search = TavilySearchResults(k=5)
-            data = search.run(
-                f"{locality} Delhi crime AQI metro connectivity infrastructure property trends"
-            )
+    st.session_state.messages.append({"role": "assistant", "content": answer})
 
-            llm = ChatGroq(model_name="llama-3.3-70b-versatile", temperature=0)
+# ===================== SIDEBAR =====================
+with st.sidebar:
+    st.header("🇮🇹 Quick Info")
+    st.markdown("""
+    **Top Universities (2026):**
+    - Politecnico di Milano
+    - University of Bologna
+    - Sapienza University of Rome
+    - University of Padova
+    - Politecnico di Torino
+    """)
+    
+    st.divider()
+    st.markdown("**Useful Links**")
+    st.markdown("[Universitaly Portal](https://www.universitaly.it)")
+    st.markdown("[Study in Italy](https://studyinitaly.esteri.it)")
+    st.markdown("[Visa Portal](https://vistoperitalia.esteri.it)")
 
-            prompt = f"""
-You are a real estate analyst.
+    if st.button("🗑️ Clear Chat History"):
+        st.session_state.messages = []
+        st.rerun()
 
-DATA:
-{data}
-
-STRICT FORMAT:
-
-SCORECARD:
-Safety: 7/10
-Connectivity: 8/10
-Environment: 6/10
-Growth: 8/10
-
-SUMMARY:
-2 lines.
-
-PROS:
--
-
-CONS:
--
-
-VERDICT:
-"""
-
-            response = llm.invoke(prompt)
-            report = response.content
-
-            scores = extract_scores(report)
-
-            # --- RESULT CARD ---
-            st.markdown("<div class='card'>", unsafe_allow_html=True)
-
-            st.subheader(f"📍 {locality}")
-
-            # SCORE GRID
-            c1, c2, c3, c4 = st.columns(4)
-            c1.markdown(f"<div class='metric-box'>🛡️<br><b>{scores['Safety']}</b><br>Safety</div>", unsafe_allow_html=True)
-            c2.markdown(f"<div class='metric-box'>🚇<br><b>{scores['Connectivity']}</b><br>Connectivity</div>", unsafe_allow_html=True)
-            c3.markdown(f"<div class='metric-box'>🌿<br><b>{scores['Environment']}</b><br>Environment</div>", unsafe_allow_html=True)
-            c4.markdown(f"<div class='metric-box'>📈<br><b>{scores['Growth']}</b><br>Growth</div>", unsafe_allow_html=True)
-
-            st.markdown("---")
-
-            st.markdown(report)
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        except Exception as e:
-            st.error(e)
+    st.caption("Powered by **Groq + Tavily**")
